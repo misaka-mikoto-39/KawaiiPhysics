@@ -205,7 +205,7 @@ struct FKawaiiPhysicsTestAccessor
 
 	/**
 	 * 1フレーム分を進める（SimulateModifyBones の純粋部分を複製）。
-	 * SkelComp 移動量のサブステップ分配は SkelCompMoveVector==0 前提のため省略。
+	 * SkelComp 移動量のサブステップ分配は本番と同じ割合で各固定ステップへ割り当てる。
 	 */
 	void StepFrame(float FrameDt)
 	{
@@ -221,13 +221,6 @@ struct FKawaiiPhysicsTestAccessor
 		{
 			return;
 		}
-		if (!ensureMsgf(Node.SkelCompMoveVector.IsNearlyZero() || !Node.bUseFixedSubsteppingCached,
-		                TEXT("FKawaiiPhysicsTestAccessor: nonzero SkelCompMoveVector is not distributed across substeps "
-			                "(production does at SimulateModifyBones). Use legacy mode or zero SkelCompMove.")))
-		{
-			return;
-		}
-
 		Node.DeltaTime = FrameDt;
 		Node.FrameDeltaTime = FrameDt;
 		PrepareFrame();
@@ -249,10 +242,13 @@ struct FKawaiiPhysicsTestAccessor
 		{
 			// ===== 固定タイムステップ・サブステップ（フレームレート非依存化） =====
 			const float FixedDt = 1.0f / Node.GetEffectiveTargetFramerate();
-			Node.SubstepAccumulator += Node.FrameDeltaTime;
-			Node.SubstepAccumulator = FMath::Min(Node.SubstepAccumulator, Node.MaxSubstepsCached * FixedDt);
+			const float RawElapsed = FMath::Max(Node.SubstepAccumulator + Node.FrameDeltaTime, KINDA_SMALL_NUMBER);
+			Node.SubstepAccumulator = FMath::Min(RawElapsed, Node.MaxSubstepsCached * FixedDt);
 			const int32 NumSteps = FMath::FloorToInt(Node.SubstepAccumulator / FixedDt);
 			Node.SubstepAccumulator -= NumSteps * FixedDt;
+			const float MoveFrac = FixedDt / RawElapsed;
+			const FVector FullSkelCompMove = Node.SkelCompMoveVector;
+			const FQuat FullSkelCompRot = Node.SkelCompMoveRotation;
 
 			Node.bInSubstep = true;
 			Node.StepDeltaTime = FixedDt;
@@ -266,9 +262,13 @@ struct FKawaiiPhysicsTestAccessor
 					Bone.PoseRotation =
 						FQuat::Slerp(Bone.PrevPoseRotation, Bone.CurrentPoseRotation, SubstepAlpha).GetNormalized();
 				}
+				Node.SkelCompMoveVector = FullSkelCompMove * MoveFrac;
+				Node.SkelCompMoveRotation = FQuat::Slerp(FQuat::Identity, FullSkelCompRot, MoveFrac).GetNormalized();
 				StepOnce();
 			}
 			Node.bInSubstep = false;
+			Node.SkelCompMoveVector = FullSkelCompMove;
+			Node.SkelCompMoveRotation = FullSkelCompRot;
 
 			for (FKawaiiPhysicsModifyBone& Bone : Node.ModifyBones)
 			{
@@ -342,6 +342,10 @@ struct FKawaiiPhysicsTestAccessor
 	void CallBoneConstraints()
 	{
 		Node.AdjustByBoneConstraints();
+	}
+	void CallUpdatePhysicsSettings()
+	{
+		Node.UpdatePhysicsSettingsOfModifyBones();
 	}
 
 	FKawaiiPhysicsSyncTargetRoot CollectSyncChildTargetsForRoot(int32 RootIndex)
