@@ -11,6 +11,22 @@ namespace
 
 	// 期待値（採取済みリテラル）。空のうちは「採取モード」として貼り付け用のログだけを出す。
 	// 要素数0の生配列はC++として不正なため TArray で保持する。
+	// ChainLegacy: 12 bones
+	static const TArray<uint64> Golden_ChainLegacy = {
+		0x0000000000000000ULL, 0x0000000000000000ULL, 0x0000000000000000ULL,
+		0x400cb36886109a0bULL, 0x3fd84b5227aa6490ULL, 0xc022a734f8496675ULL,
+		0x401c64444ee9b3e4ULL, 0x3ff206c7630a3310ULL, 0xc032a90d9826a689ULL,
+		0x4024fc0cb93b114eULL, 0x4001de346c91e3c5ULL, 0xc03c005574c5ce68ULL,
+		0x402b77cb6a41f1f5ULL, 0x400d7a05654f962eULL, 0xc042acb73b60a59aULL,
+		0x4030c9ccbe978f78ULL, 0x4015d78e9841be9cULL, 0xc0475a2a1cb82e99ULL,
+		0x40339f946dc5e8b9ULL, 0x401e278f44e15106ULL, 0xc04c087a4e75b4deULL,
+		0x4036364550098a76ULL, 0x4023c85dcc758517ULL, 0xc0505bce39f8f42cULL,
+		0x403886c62e05fb9aULL, 0x4028f5512c45a1e0ULL, 0xc052b3ff19ce6d8bULL,
+		0x403a81ee9349fb99ULL, 0x402e8624839a69e8ULL, 0xc0550d7f6824d7a6ULL,
+		0x403c0f00aca3e782ULL, 0x40324b1bc7f24e16ULL, 0xc05767401986a3e6ULL,
+		0x403d47e342cf0b37ULL, 0x4035cde3eb6a23eaULL, 0xc059b96202d95a7bULL,
+	};
+
 	// Chain: 12 bones
 	static const TArray<uint64> Golden_Chain = {
 		0x0000000000000000ULL, 0x0000000000000000ULL, 0x0000000000000000ULL,
@@ -168,6 +184,21 @@ namespace
 		return CollectLocations(A);
 	}
 
+	// legacy（サブステップOFF）。Exponent が 1.0f にならないため Stiffness の Pow 経路が
+	// 固定サブステップ時と別のコードパスになる。そちらのビット不変性もここで固定する。
+	TArray<FVector> RunChainLegacyScenario()
+	{
+		FKawaiiPhysicsTestAccessor A;
+		A.BuildVerticalChain(12, 10.0f);
+		A.SetAllPhysicsSettings(MakeSettings(2.0f, 0.0f));
+		A.SetSimulationSpace(EKawaiiPhysicsSimulationSpace::ComponentSpace);
+		A.SetGravityInSimSpace(FVector(0.0, 0.0, -980.0));
+		A.SetFixedSubstepping(false, 60, 4);
+		A.SetSkelCompMove(FVector(0.3f, 0.0f, 0.0f), FQuat(FVector::UpVector, 0.01f));
+		RunGoldenFrames(A);
+		return CollectLocations(A);
+	}
+
 	TArray<FVector> RunConstraintScenario()
 	{
 		FKawaiiPhysicsTestAccessor A;
@@ -265,6 +296,7 @@ bool FKawaiiPhysicsGoldenPositionsTest::RunTest(const FString& Parameters)
 {
 	bool bOk = true;
 	bOk &= CheckOrCapture(*this, TEXT("Chain"), RunChainScenario(), Golden_Chain);
+	bOk &= CheckOrCapture(*this, TEXT("ChainLegacy"), RunChainLegacyScenario(), Golden_ChainLegacy);
 	bOk &= CheckOrCapture(*this, TEXT("Constraint"), RunConstraintScenario(), Golden_Constraint);
 	bOk &= CheckOrCapture(*this, TEXT("Collision"), RunCollisionScenario(*this), Golden_Collision);
 	return bOk;

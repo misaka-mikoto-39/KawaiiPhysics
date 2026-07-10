@@ -233,6 +233,26 @@ bool FKawaiiPhysicsPerfChainTest::RunTest(const FString& Parameters)
 		});
 }
 
+// legacy（サブステップOFF）。Exponent = TargetFramerate * DeltaTime となり 1.0f にならないため、
+// 固定サブステップ時のように powf の y==1 特殊ケースへ落ちない。Stiffness の Pow コストはここで初めて現れる。
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FKawaiiPhysicsPerfChainLegacyTest,
+                                 "KawaiiPhysics.Perf.ChainLegacy",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FKawaiiPhysicsPerfChainLegacyTest::RunTest(const FString& Parameters)
+{
+	return RunSimulationPerf(*this, TEXT("KawaiiPhysics.Perf.ChainLegacy"),
+		[](FKawaiiPhysicsTestAccessor& A)
+		{
+			A.BuildVerticalChain(200, 5.0f);
+			A.SetAllPhysicsSettings(MakePerfSettings(2.0f));
+			A.SetSimulationSpace(EKawaiiPhysicsSimulationSpace::ComponentSpace);
+			A.SetGravityInSimSpace(FVector(0.0, 0.0, -980.0));
+			A.SetFixedSubstepping(false, 60, 4);
+			A.SetSkelCompMove(FVector(0.3f, 0.0f, 0.0f), FQuat::Identity);
+		});
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FKawaiiPhysicsPerfCollisionTest,
                                  "KawaiiPhysics.Perf.Collision",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
