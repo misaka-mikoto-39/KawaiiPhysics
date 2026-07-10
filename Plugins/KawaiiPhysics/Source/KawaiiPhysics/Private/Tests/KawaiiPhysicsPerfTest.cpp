@@ -289,6 +289,34 @@ bool FKawaiiPhysicsPerfConstraintTest::RunTest(const FString& Parameters)
 		});
 }
 
+// 拘束計算そのものを支配的にした重量ベンチ。1000ボーン / 999拘束 / 反復16+16。
+// 制約毎の除算やコンプライアンス表引きのような小さな差を、ボーン側の処理に埋もれさせずに測るためのもの。
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FKawaiiPhysicsPerfConstraintHeavyTest,
+                                 "KawaiiPhysics.Perf.ConstraintHeavy",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FKawaiiPhysicsPerfConstraintHeavyTest::RunTest(const FString& Parameters)
+{
+	return RunSimulationPerf(*this, TEXT("KawaiiPhysics.Perf.ConstraintHeavy"),
+		[](FKawaiiPhysicsTestAccessor& A)
+		{
+			constexpr int32 PerChain = 500;
+			A.BuildTwoVerticalChains(PerChain, 5.0f, 8.0f);
+			ConfigureBaseSimulation(A);
+			A.SetBoneConstraintIterations(16, 16);
+			A.SetBoneConstraintGlobalComplianceType(EXPBDComplianceType::Leather);
+			// 横方向と斜め方向の両方を張り、ボーン数に対して拘束数を稼ぐ。長さは実距離より短くして常に違反させる。
+			for (int32 Depth = 0; Depth < PerChain; ++Depth)
+			{
+				A.AddRuntimeBoneConstraint(Depth, PerChain + Depth, 6.0f);
+			}
+			for (int32 Depth = 0; Depth < PerChain - 1; ++Depth)
+			{
+				A.AddRuntimeBoneConstraint(Depth, PerChain + Depth + 1, 7.0f);
+			}
+		});
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FKawaiiPhysicsPerfPhysicsSettingsTest,
                                  "KawaiiPhysics.Perf.PhysicsSettings",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
